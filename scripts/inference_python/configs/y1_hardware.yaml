@@ -1,0 +1,12 @@
+# Edit to match the physical wiring. Single-arm mode uses right_arm.
+arm_can:
+  left_arm: can0
+  right_arm: can1
+v4l2:
+  cam_high: /dev/cam_high
+  cam_left_wrist: /dev/cam_left_wrist
+  cam_right_wrist: /dev/cam_right_wrist
+orbbec:
+  cam_high: CH8R554001M
+  cam_left_wrist: CH8G65200Z9
+  cam_right_wrist: CH8G65200Y4

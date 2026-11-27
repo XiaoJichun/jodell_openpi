@@ -8,8 +8,6 @@ import threading
 import time
 from typing import Union
 from robot.imeta_y1 import Y1Controller
-from camera.orbbec_camera import OrbbecCamera
-from camera.v4l2_camera import V4l2Camera
 
 # setting your camera serial number
 Orbbec_CAMERA_SERIALS = {
@@ -55,9 +53,11 @@ class RealRobotEnv:
         }
 
         if self.camera_type == "orbbec":
+            from camera.orbbec_camera import OrbbecCamera
             camera_cls = OrbbecCamera
             self.camera_devices = Orbbec_CAMERA_SERIALS
         elif self.camera_type == "v4l2":
+            from camera.v4l2_camera import V4l2Camera
             camera_cls = V4l2Camera
             self.camera_devices = V4l2_CAMERA_DEV
         else:

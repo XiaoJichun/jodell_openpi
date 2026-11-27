@@ -1,0 +1,31 @@
+[project]
+name = "openpi-async_bspline"
+version = "0.1.0"
+description = "Optional asynchronous B-spline action plugin for openpi"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["openpi-client", "numpy>=1.22.4,<2", "scipy>=1.14,<2", "typing-extensions>=4.12.2", "PyYAML>=6,<7"]
+
+[project.optional-dependencies]
+plot = ["matplotlib>=3.9,<4"]
+
+[project.scripts]
+openpi-trajectory-plot = "openpi_async_bspline.plotting:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+openpi-client = { path = "../openpi-client", editable = true }
+
+[tool.ruff]
+extend = "../../pyproject.toml"
+
+[tool.ruff.lint.per-file-ignores]
+# Preserve the original Chinese algorithm commentary.
+"src/openpi_async_bspline/bspline_c2_merge.py" = ["RUF002", "RUF003"]
+# Chinese viewer text uses full-width punctuation.
+"src/openpi_async_bspline/plotting.py" = ["RUF001"]
+# Deterministic async tests inspect worker completion.
+"tests/*" = ["SLF001"]

@@ -549,6 +549,32 @@ class TrainConfig:
 
 # Use `get_config` if you need to get a config by name in your code.
 _CONFIGS = [
+    # Public ALOHA simulation checkpoint. Keep preprocessing identical across modes.
+    TrainConfig(
+        name="pi0_aloha_sim",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotAlohaDataConfig(
+            repo_id="lerobot/aloha_sim_transfer_cube_human",
+            default_prompt="Transfer cube",
+            use_delta_joint_actions=False,
+        ),
+        policy_metadata={"benchmark": "aloha_sim", "action_horizon": 50, "rtc": False},
+    ),
+    TrainConfig(
+        name="pi0_aloha_sim_rtc",
+        model=pi0_config.Pi0RTCConfig(),
+        data=LeRobotAlohaDataConfig(
+            repo_id="lerobot/aloha_sim_transfer_cube_human",
+            default_prompt="Transfer cube",
+            use_delta_joint_actions=False,
+        ),
+        policy_metadata={
+            "benchmark": "aloha_sim",
+            "action_horizon": 50,
+            "rtc": True,
+            "rtc_prefix_space": "environment",
+        },
+    ),
     ### Fine-tuning IMETA-Y1 single arm configs.
     # full fine tuning pi0_base
     TrainConfig(
@@ -588,6 +614,7 @@ _CONFIGS = [
     # full fine tuning pi05_base
     TrainConfig(
         name="pi05_base_full_single_arm",
+        policy_metadata={"robot": "y1", "action_dim": 7, "action_horizon": 50, "rtc": False},
         model=pi0_config.Pi0Config(pi05=True),
         data=LeRobotAlohaDataConfig(
             repo_id="openpi/pick_up_screws",   # your datasets repo_id
@@ -693,6 +720,7 @@ _CONFIGS = [
     # pi05 RTC inference
     TrainConfig(
         name="pi05_rtc_inference_dual_arm",
+        policy_metadata={"robot": "y1", "action_dim": 14, "action_horizon": 50, "rtc": True, "rtc_prefix_space": "environment"},
         model=pi0_config.Pi0RTCConfig(pi05=True),
         data=LeRobotAlohaDataConfig(
             repo_id="openpi/bi_y1_test_20260410",   # your datasets repo_id

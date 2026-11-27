@@ -1,0 +1,23 @@
+[project]
+name = "openpi-trajectory-recorder"
+version = "0.1.0"
+description = "Preallocated in-memory policy recording and offline trajectory analysis"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.22.4,<3", "openpi-client"]
+
+[project.optional-dependencies]
+plot = ["matplotlib>=3.9,<4"]
+
+[project.scripts]
+openpi-trajectory-analyze = "openpi_trajectory_recorder.analysis:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+openpi-client = { path = "../openpi-client", editable = true }
+
+[tool.ruff]
+extend = "../../pyproject.toml"

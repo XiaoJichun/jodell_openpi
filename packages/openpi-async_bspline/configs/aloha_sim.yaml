@@ -1,0 +1,36 @@
+# ALOHA: 50 Hz, horizon 50. YAML is read once before control starts.
+bspline:
+  # ominf BsplineConfig: all 24 original fields are listed below.
+  degree: 3
+  max_deriv: 2
+  knots_interior: 6
+  knots_interior_merge: 3  # Only used by refit.
+  merge_input_mode: crop  # crop | refit
+  interpolate_factor: 3.0 # Worker cache samples = ceil(horizon * factor); 0 = exact evaluation.
+  offset_timestep: 3.0    # Future splice offset in ticks; supports fractions. Do not also set blend_lead_steps.
+  publish_position: true # Adds positions; mandatory OpenPI actions is always returned.
+  publish_velocity: true # Adds velocities in units/second.
+  publish_acceleration: true # Adds accelerations in units/second^2.
+
+  # Only records RAM during inference. After close(), call save_diagnostics().
+  bspline_infer_plot: false # Retain fitted/merged windows for offline plotting.
+  plots_dir: data/aloha_sim/bspline_diagnostics
+  bspline_publish_plot: false # Retain actual published positions.
+  timing_print: false     # Print worker timing summary only during save_diagnostics().
+  joint_col: ""          # Plugin adapter: comma-separated joint names; empty = Joint N.
+  plot_ncol: 2
+  plot_joint_indices: "" # Zero-based joint indices, e.g. "0,4"; empty = all.
+  plot_point_indices: "" # Zero-based original chunk sample indices; empty = all.
+  plot_merge_steps: ""   # One-based recorded window numbers (includes initial fit).
+  plot_raw: true
+  plot_scatter: false    # Plot spline fitted to raw samples.
+  plot_c2_merge: false   # Plot merged spline before the must-pass correction.
+  plot_final: true
+  plot_overall: false    # With publish plot: per-episode all-joint summary PDF.
+
+  # Plugin-specific scheduling, units, passthrough and bounded RAM storage.
+  replan_interval: 15
+  fps: 50.0              # Derivative conversion; env.bspline also inherits env.fps.
+  passthrough_indices: [6, 13] # ALOHA grippers; derivatives use finite differences.
+  diagnostic_capacity: 128 # Maximum retained windows; overflow counted and discarded.
+  publish_capacity: 30000  # Maximum retained control ticks across episodes.

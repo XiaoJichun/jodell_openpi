@@ -75,6 +75,8 @@ dlimp = { git = "https://github.com/kvablack/dlimp", rev = "ad72ce3a9b414db2185b
 
 [tool.uv.workspace]
 members = ["packages/*"]
+# Optional plugin is installed independently of the training workspace.
+exclude = ["packages/openpi-async_bspline", "packages/openpi-trajectory-recorder"]
 
 [tool.ruff]
 line-length = 120

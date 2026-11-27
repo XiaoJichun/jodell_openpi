@@ -20,8 +20,8 @@ class AlohaSimEnvironment(_environment.Environment):
         self._episode_reward = 0.0
 
     @override
-    def reset(self) -> None:
-        gym_obs, _ = self._gym.reset(seed=int(self._rng.integers(2**32 - 1)))
+    def reset(self, *, seed: int | None = None) -> None:
+        gym_obs, _ = self._gym.reset(seed=int(self._rng.integers(2**32 - 1)) if seed is None else seed)
         self._last_obs = self._convert_observation(gym_obs)  # type: ignore
         self._done = False
         self._episode_reward = 0.0
@@ -39,10 +39,17 @@ class AlohaSimEnvironment(_environment.Environment):
 
     @override
     def apply_action(self, action: dict) -> None:
-        gym_obs, reward, terminated, truncated, info = self._gym.step(action["actions"])
+        gym_obs, reward, terminated, truncated, _info = self._gym.step(action["actions"])
         self._last_obs = self._convert_observation(gym_obs)  # type: ignore
         self._done = terminated or truncated
         self._episode_reward = max(self._episode_reward, reward)
+
+    @property
+    def episode_reward(self) -> float:
+        return float(self._episode_reward)
+
+    def close(self) -> None:
+        self._gym.close()
 
     def _convert_observation(self, gym_obs: dict) -> dict:
         img = gym_obs["pixels"]["top"]

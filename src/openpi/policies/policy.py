@@ -15,6 +15,7 @@ from typing_extensions import override
 
 from openpi import transforms as _transforms
 from openpi.models import model as _model
+from openpi.policies.rtc_inputs import transform_with_rtc_prefix
 from openpi.shared import array_typing as at
 from openpi.shared import nnx_utils
 
@@ -68,7 +69,16 @@ class Policy(BasePolicy):
     def infer(self, obs: dict, *, noise: np.ndarray | None = None) -> dict:  # type: ignore[misc]
         # Make a copy since transformations may modify the inputs in place.
         inputs = jax.tree.map(lambda x: x, obs)
-        inputs = self._input_transform(inputs)
+        if "rtc_prefix_space" in obs:
+            inputs, rtc_prefix = transform_with_rtc_prefix(
+                obs,
+                self._input_transform,
+                action_horizon=self._model.action_horizon,
+                action_dim=self._model.action_dim,
+            )
+        else:
+            inputs = self._input_transform(inputs)
+            rtc_prefix = obs.get("prev_action_chunk")
         if not self._is_pytorch_model:
             # Make a batch and convert to jax.Array.
             inputs = jax.tree.map(lambda x: jnp.asarray(x)[np.newaxis, ...], inputs)
@@ -82,7 +92,7 @@ class Policy(BasePolicy):
         sample_kwargs = dict(self._sample_kwargs)
 
         if "prev_action_chunk" in obs:
-            sample_kwargs["prev_action_chunk"] = obs["prev_action_chunk"]
+            sample_kwargs["prev_action_chunk"] = rtc_prefix
         if "inference_delay" in obs:
             sample_kwargs["inference_delay"] = obs["inference_delay"]
         if "execute_horizon" in obs:

@@ -34,3 +34,7 @@ Terminal window 2:
 # Run the server
 uv run scripts/serve_policy.py --env ALOHA_SIM
 ```
+
+## 同步、RTC 与异步 B 样条评测
+
+参见 [BENCHMARK.md](BENCHMARK.md)，包含统一权重的服务端配置、三种运行模式、指标说明与无模型测试。

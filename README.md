@@ -321,3 +321,9 @@ We will collect common issues and their solutions here. If you encounter an issu
 | Import errors when running examples       | Make sure you've installed all dependencies with `uv sync`. Some examples may have additional requirements listed in their READMEs.                    |
 | Action dimensions mismatch                | Verify your data processing transforms match the expected input/output dimensions of your robot. Check the action space definitions in your policy classes.                                  |
 | Diverging training loss                            | Check the `q01`, `q99`, and `std` values in `norm_stats.json` for your dataset. Certain dimensions that are rarely used can end up with very small `q01`, `q99`, or `std` values, leading to huge states and actions after normalization. You can manually adjust the norm stats as a workaround. |
+
+## Optional asynchronous B-spline plugin
+
+See [openpi-async_bspline](packages/openpi-async_bspline/README.md) for an independently installable client wrapper that runs inference and trajectory merging in a background worker. A local example is available in [examples/bspline_demo.py](examples/bspline_demo.py).
+
+For preallocated in-memory recording during execution and offline PNG/PDF analysis afterward, see the independent [openpi-trajectory-recorder](packages/openpi-trajectory-recorder/README.md) plugin. It wraps the final per-step policy for sync, RTC or B-spline control.
