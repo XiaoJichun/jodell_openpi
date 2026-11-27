@@ -1,0 +1,43 @@
+# 客户端交互终端默认配置，启动命令：bash scripts/start_client.sh
+# 覆盖顺序：common → profiles 中选定环境 → 本次终端交互修改。
+# --target real/sim 可覆盖 default_target；--config 可指定另一份启动器 YAML。
+# 切换环境会恢复该环境的 YAML 默认值；菜单编辑不覆盖本文件。
+# 所有相对路径以项目根目录为基准，不以此 YAML 所在目录为基准。
+default_target: sim # 默认环境：sim=ALOHA 仿真，real=Y1 SDK/CAN 真机。
+
+common: # 两个环境的公共默认值；也可在 profiles.sim/real 中覆盖这些字段。
+  mode: bspline # 策略：sync=同步，rtc=异步 RTC 引导，bspline=异步 B 样条。
+  host: localhost # 模型服务器地址；跨机器请改为服务器 IP，不能使用 localhost。
+  port: 8000 # 模型服务器 WebSocket 端口，必须与 server.yaml 一致。
+  episodes: 1 # 仅仿真：运行回合数；真机每次启动只执行一次任务，不使用此字段。
+  steps: 400 # 仿真每回合/真机每次任务的控制步数上限；不是模型返回的动作窗口长度。
+  seed: 0 # 仅仿真：首回合随机种子，后续回合递增；真机不使用。
+  guidance: 0.5 # 仅 RTC：模型引导最大权重，有限非负数；同步/B 样条不使用。
+  delay_ms: 0.0 # 仅仿真：每次模型请求额外注入的延迟，单位毫秒，非负；真机不使用。
+  record: true # 内存记录下发动作、观测状态和计时，控制结束后保存 NPZ。
+  plot: true # 结束后绘制执行曲线；开启时即使 record=false 也会记录轨迹。
+  video: false # 保存相机画面：运行时缓存帧，结束后编码；长时间录像增加内存和复制开销。
+  mock: false # true=假模型测试；真机模式不连接模型/硬件，仿真模式仍运行 MuJoCo。
+  render: egl # 仅仿真：egl=GPU 无窗口，osmesa=CPU 无窗口，glfw=窗口；需对应系统渲染库。
+  gpu: '0' # 客户端 CUDA_VISIBLE_DEVICES，必须为字符串；不控制远端服务器使用哪个 GPU。
+  prompt: Grab the black electrical tape from the left plane to the right plane # 仅真机：任务语言指令，需匹配模型训练任务。
+  single_arm: false # 仅真机：false=双臂，true=右侧单臂；实际单臂模型输出维数适配尚未完成。
+  camera_type: v4l2 # 仅真机：v4l2=设备文件取图，orbbec=厂商 SDK 按序列号取图。
+  camera_names: # 仅真机：参与观测的相机名称列表；当前模型要求 cam_high，配置应与训练时一致。
+  - cam_high # 顶部/主视角；真机录像保存列表中的第一路相机。
+  - cam_left_wrist # 左腕视角，键名需与硬件 YAML 一致。
+  - cam_right_wrist # 右腕视角，键名需与硬件 YAML 一致。
+  hardware_config: scripts/inference_python/configs/y1_hardware.yaml # 仅真机：CAN、设备路径和相机序列号映射。
+  horizon: 50 # 仅真机：每次模型返回的动作窗口步数，必须与服务器元数据及实际输出一致；仿真固定为 50。
+
+profiles: # 每个环境的独立默认值；加载时覆盖同名 common 参数。
+  sim: # ALOHA 方块移交仿真；连接匹配的仿真模型服务器。
+    hz: 50.0 # 仿真物理/控制基准为 50 Hz；此启动分支固定 50，不支持靠修改此值改变仿真频率。
+    interval: 15 # 同步/RTC 的模型请求间隔，单位控制步；B 样条使用算法 YAML 的 replan_interval。
+    output: data/aloha_sim/interactive_{timestamp} # 输出根目录，{timestamp} 自动替换为 UTC 时间戳，结果在模式子目录中。
+    bspline_config: packages/openpi-async_bspline/configs/aloha_sim.yaml # B 样条算法参数；算法 fps 必须为 50。
+  real: # Y1 SDK/CAN 真机；初始化 SDK 会使能机械臂，不是 ROS topic 模式。
+    hz: 30.0 # 目标控制频率，单位 Hz；循环超时会降低实际频率，非硬实时；须与算法 fps 一致。
+    interval: 8 # 同步/RTC 的请求间隔，单位控制步；B 样条仍使用算法 YAML 的 replan_interval。
+    output: data/real_robot/interactive_{timestamp} # 真机输出根目录；已有同模式结果时拒绝覆盖。
+    bspline_config: packages/openpi-async_bspline/configs/y1_real.yaml # 真机样条配置：拟合/融合、调度、导数和内部诊断。

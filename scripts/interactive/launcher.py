@@ -12,6 +12,9 @@ from pathlib import Path
 import shlex
 import sys
 
+from configuration import load_profiles
+from configuration import profile_values
+
 ROOT = Path(__file__).resolve().parents[2]
 USE_TUI = False
 UI = None
@@ -96,7 +99,7 @@ def arrow_menu(title, values, labels, actions):
     if title.startswith("B 样条"):
         options = [(key, key) for key in BSPLINE_GROUPS]
     else:
-        hidden = {"record", "plot", "video"}
+        hidden = {"record", "plot", "video", "bspline_config"}
         if "mode" in values:
             if values.get("target", "sim") == "real":
                 hidden.update(("episodes", "seed", "delay_ms", "render"))
@@ -160,7 +163,7 @@ def menu(title, values, labels, *, extra="", actions=()):
     if USE_TUI:
         return arrow_menu(title, values, labels, list(actions))
     print(f"\n{title}（输入编号修改；回车保留当前值）")
-    keys = list(values)
+    keys = [key for key in values if key != "bspline_config"]
     for index, key in enumerate(keys, 1):
         print(f"  {index:2}. {labels.get(key, key)} [{key}] = {values[key]}")
     print(extra)
@@ -188,9 +191,24 @@ def port_check(port):
         raise ValueError("端口必须在 1–65535")
 
 
-def launch(command, environment, *, dry_run):
+def launch(command, environment, *, dry_run, settings=None):
     print("\n启动命令：\n" + shlex.join(command), flush=True)
     print("环境变量：" + shlex.join([f"{k}={v}" for k, v in environment.items()]), flush=True)
+    if settings is not None:
+        import yaml  # noqa: PLC0415
+
+        directory = ROOT / settings.get("output", "data/inference_launches/server")
+        directory.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S_%f")
+        snapshot = directory / f"launcher_{stamp}.yaml"
+        with snapshot.open("x", encoding="utf-8") as stream:
+            yaml.safe_dump(
+                {"settings": settings, "command": command, "environment": environment},
+                stream,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+        print(f"启动参数快照：{snapshot}")
     if dry_run:
         print("预览完成，未启动推理进程。")
         return
@@ -198,15 +216,9 @@ def launch(command, environment, *, dry_run):
     os.execvpe(command[0], command, {**os.environ, **environment})
 
 
-def server(dry_run):
-    values = {
-        "gpu": "0",
-        "port": 8000,
-        "config": "pi0_aloha_sim_rtc",
-        "checkpoint": "checkpoints/pi0_aloha_sim",
-        "memory_fraction": 0.60,
-        "target": "sim",
-    }
+def server(dry_run, config_path=None, target=None):
+    profiles = load_profiles("server", config_path)
+    values = profile_values(profiles, target or profiles["default_target"])
     labels = {
         "gpu": "GPU 编号（可逗号分隔）",
         "port": "服务端口",
@@ -214,7 +226,7 @@ def server(dry_run):
         "checkpoint": "模型路径或 gs:// 地址",
         "memory_fraction": "JAX 显存预分配比例",
     }
-    active_target = "sim"
+    active_target = values["target"]
     labels["target"] = "运行环境"
     while True:
         choice = menu(
@@ -226,12 +238,7 @@ def server(dry_run):
                 print("运行环境应为 sim / real")
                 continue
             active_target = values["target"]
-            values["config"] = "pi05_rtc_inference_dual_arm" if active_target == "real" else "pi0_aloha_sim_rtc"
-            values["checkpoint"] = (
-                "checkpoints/pi05_base_full_dual_arm/bi_y1_test_20260410/30000"
-                if active_target == "real"
-                else "checkpoints/pi0_aloha_sim"
-            )
+            values = profile_values(profiles, active_target)
             print("已切换模型配置；请确认 checkpoint 路径。")
         if choice == "q":
             return
@@ -263,7 +270,7 @@ def server(dry_run):
                 "OPENPI_DATA_HOME": str(ROOT / ".cache/openpi"),
                 "XLA_PYTHON_CLIENT_MEM_FRACTION": str(values["memory_fraction"]),
             }
-            launch(command, environment, dry_run=dry_run)
+            launch(command, environment, dry_run=dry_run, settings=values)
             return
         except ValueError as exc:
             print(f"配置错误：{exc}")
@@ -293,38 +300,13 @@ def edit_bspline(config):
                 print(f"配置错误：{exc}")
 
 
-def client(dry_run):
+def client(dry_run, config_path=None, target=None):
     from openpi_async_bspline import BSplineConfig  # noqa: PLC0415
     import yaml  # noqa: PLC0415
 
-    config = BSplineConfig.from_yaml(ROOT / "packages/openpi-async_bspline/configs/aloha_sim.yaml")
     stamp = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S_%f")
-    values = {
-        "mode": "bspline",
-        "host": "localhost",
-        "port": 8000,
-        "episodes": 1,
-        "steps": 400,
-        "seed": 0,
-        "interval": 15,
-        "guidance": 0.5,
-        "delay_ms": 0.0,
-        "record": True,
-        "plot": True,
-        "video": False,
-        "mock": False,
-        "render": "egl",
-        "gpu": "0",
-        "output": f"data/aloha_sim/interactive_{stamp}",
-        "target": "sim",
-        "hz": 50.0,
-        "prompt": "Grab the black electrical tape from the left plane to the right plane",
-        "single_arm": False,
-        "camera_type": "v4l2",
-        "camera_names": ["cam_high", "cam_left_wrist", "cam_right_wrist"],
-        "hardware_config": "scripts/inference_python/configs/y1_hardware.yaml",
-        "horizon": 50,
-    }
+    profiles = load_profiles("client", config_path)
+    values = profile_values(profiles, target or profiles["default_target"], stamp)
     labels = {
         "target": "运行环境",
         "hz": "控制频率 Hz（仿真固定 50）",
@@ -338,7 +320,7 @@ def client(dry_run):
         "host": "服务器地址",
         "port": "服务端口",
         "episodes": "回合数",
-        "steps": "每回合步数上限",
+        "steps": "执行步数上限",
         "seed": "起始随机种子",
         "interval": "同步/RTC 请求间隔（B 样条使用 YAML）",
         "guidance": "RTC 引导强度",
@@ -351,9 +333,11 @@ def client(dry_run):
         "gpu": "客户端 GPU 编号",
         "output": "结果目录",
     }
-    active_target = "sim"
-    active_single = False
+    active_target = values["target"]
+    config = BSplineConfig.from_yaml(ROOT / values["bspline_config"])
+    active_single = not values["single_arm"]
     while True:
+        labels["steps"] = "本次任务步数上限" if active_target == "real" else "每回合步数上限"
         choice = menu(
             "真机客户端（Y1 SDK）" if active_target == "real" else "仿真客户端（固定 50 Hz）",
             values,
@@ -368,12 +352,9 @@ def client(dry_run):
                 continue
             active_target = values["target"]
             active_single = not values["single_arm"]
-            name = "y1_real.yaml" if active_target == "real" else "aloha_sim.yaml"
-            config = BSplineConfig.from_yaml(ROOT / "packages/openpi-async_bspline/configs" / name)
-            values["hz"] = config.fps
-            values["interval"] = config.replan_interval
-            values["output"] = f"data/{'real_robot' if active_target == 'real' else 'aloha_sim'}/interactive_{stamp}"
-            print(f"已加载 {name}；真机模式每次启动执行一次任务。")
+            values = profile_values(profiles, active_target, stamp)
+            config = BSplineConfig.from_yaml(ROOT / values["bspline_config"])
+            print(f"已加载 {values['bspline_config']}；切换环境会恢复该环境的 YAML 默认值。")
         if active_target == "real" and active_single != values["single_arm"]:
             active_single = values["single_arm"]
             settings = config.to_dict()
@@ -386,13 +367,14 @@ def client(dry_run):
         elif choice == "l":
             try:
                 path = (
-                    UI.path("YAML 配置路径", str(ROOT / "packages/openpi-async_bspline/configs/aloha_sim.yaml"))
+                    UI.path("YAML 配置路径", str(ROOT / values["bspline_config"]))
                     if USE_TUI
                     else input("YAML 路径：").strip()
                 )
                 if path is None:
                     continue
                 config = BSplineConfig.from_yaml(ROOT / Path(path).expanduser())
+                values["bspline_config"] = path
                 print("YAML 已加载到内存。")
             except (OSError, ValueError, yaml.YAMLError) as exc:
                 print(f"加载失败：{exc}")
@@ -400,7 +382,7 @@ def client(dry_run):
             try:
                 if active_target == "real":
                     command = real_command(values, config, stamp)
-                    launch(command, {"CUDA_VISIBLE_DEVICES": values["gpu"]}, dry_run=dry_run)
+                    launch(command, {"CUDA_VISIBLE_DEVICES": values["gpu"]}, dry_run=dry_run, settings=values)
                     return
                 positive(values, "episodes", "steps", "interval")
                 port_check(values["port"])
@@ -442,7 +424,12 @@ def client(dry_run):
                 ):
                     if values[key]:
                         command.append("--" + flag)
-                launch(command, {"MUJOCO_GL": values["render"], "CUDA_VISIBLE_DEVICES": values["gpu"]}, dry_run=dry_run)
+                launch(
+                    command,
+                    {"MUJOCO_GL": values["render"], "CUDA_VISIBLE_DEVICES": values["gpu"]},
+                    dry_run=dry_run,
+                    settings=values,
+                )
                 return
             except (ValueError, OSError) as exc:
                 print(f"配置错误：{exc}")
@@ -518,6 +505,8 @@ def main():
     parser.add_argument("role", choices=("server", "client"))
     parser.add_argument("--dry-run", action="store_true", help="交互配置后仅保存配置和显示命令，不启动推理")
     parser.add_argument("--plain", action="store_true", help="使用兼容的编号菜单；非 TTY 输入也自动使用此模式")
+    parser.add_argument("--config", type=Path, help="Launcher YAML (default: scripts/inference_python/configs/<role>.yaml)")
+    parser.add_argument("--target", choices=("sim", "real"), help="Override YAML default_target")
     args = parser.parse_args()
     USE_TUI = not args.plain and sys.stdin.isatty() and sys.stdout.isatty()
     if USE_TUI:
@@ -531,7 +520,9 @@ def main():
         UI.banner("OpenPI 模型服务端" if args.role == "server" else "OpenPI 推理客户端")
     os.chdir(ROOT)
     try:
-        (server if args.role == "server" else client)(args.dry_run)
+        (server if args.role == "server" else client)(args.dry_run, args.config, args.target)
+    except (OSError, ValueError) as exc:
+        parser.error(str(exc))
     except (KeyboardInterrupt, EOFError):
         print("\n已退出。")
 

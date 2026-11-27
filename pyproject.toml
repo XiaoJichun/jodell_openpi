@@ -21,7 +21,7 @@ dependencies = [
     "ml_collections==1.0.0",
     "numpy>=1.22.4,<2.0.0",
     "numpydantic>=1.6.6",
-    "opencv-python>=4.10.0.84",
+    "opencv-python==4.11.0.86",
     "openpi-client",
     "orbax-checkpoint==0.11.13",
     "pillow>=11.0.0",
@@ -47,6 +47,36 @@ dependencies = [
 Repository = "https://github.com/Physical-Intelligence/openpi"
 
 [dependency-groups]
+# uv sync --no-default-groups --group inference-server (includes root model dependencies).
+inference-server = [{ include-group = "inference-terminal" }]
+inference-terminal = ["questionary>=2.1,<3", "PyYAML>=6,<7"]
+# Use --only-group for clients: do not install root JAX/Torch/training dependencies.
+inference-client = [
+    { include-group = "inference-terminal" },
+    "openpi-client",
+    "openpi-async_bspline[plot]",
+    "openpi-trajectory-recorder[plot]",
+    "numpy==1.26.4",
+    "imageio>=2.36.1",
+    "imageio-ffmpeg>=0.5,<1",
+]
+inference-sim = [
+    { include-group = "inference-client" },
+    "gym-aloha==0.1.1",
+    "mujoco==2.3.7",
+    "dm-control==1.0.14",
+]
+inference-real = [
+    { include-group = "inference-client" },
+    "opencv-python==4.11.0.86",
+    "rerun-sdk==0.23.1",
+    # Add "y1-sdk" here AFTER configuring the matching vendor source below.
+]
+inference-v4l2 = ["v4l2==0.2"]
+# Vendor SDK is deliberately not resolved from an unverified public package.
+# After obtaining a matching wheel, uncomment BOTH group and source entries:
+# inference-orbbec = ["pyorbbecsdk"]
+inference-test = ["pytest>=8.3.4", "ruff>=0.8.6"]
 dev = [
     "pytest>=8.3.4",
     "ruff>=0.8.6",
@@ -67,15 +97,17 @@ override-dependencies = ["ml-dtypes==0.4.1", "tensorstore==0.1.74"]
 
 [tool.uv.sources]
 openpi-client = { workspace = true }
+openpi-async_bspline = { path = "packages/openpi-async_bspline", editable = true }
+openpi-trajectory-recorder = { path = "packages/openpi-trajectory-recorder", editable = true }
 lerobot = { git = "https://github.com/huggingface/lerobot", rev = "0cf864870cf29f4738d3ade893e6fd13fbd7cdb5" }
 # lerobot = { path = "/your_path/lerobot" } # 如果在下载安装lerobot环境时很慢，可以提前下载好，然后替换为你的实际本地路径
 dlimp = { git = "https://github.com/kvablack/dlimp", rev = "ad72ce3a9b414db2185bc0b38461d4101a65477a" }
-# y1_sdk = { path = "/home/imeta/IMETA_LAB/y1_sdk_python/y1_sdk" } # 选择你自己的y1_sdk路径
-# pyorbbecsdk = { path = "/home/imeta/github/pyorbbecsdk/dist/pyorbbecsdk-1.3.1-cp311-cp311-linux_x86_64.whl" }
+# y1-sdk = { path = "/absolute/vendor/y1_sdk_python/y1_sdk", editable = true } # 配合 inference-real 中 y1-sdk 启用
+# pyorbbecsdk = { path = "/absolute/vendor/pyorbbecsdk-version-cp311-cp311-linux_x86_64.whl" } # 配合 inference-orbbec 启用
 
 [tool.uv.workspace]
 members = ["packages/*"]
-# Optional plugin is installed independently of the training workspace.
+# Plugins remain standalone packages; root inference groups reference them by path.
 exclude = ["packages/openpi-async_bspline", "packages/openpi-trajectory-recorder"]
 
 [tool.ruff]

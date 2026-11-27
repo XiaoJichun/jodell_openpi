@@ -1,12 +1,18 @@
-# Edit to match the physical wiring. Single-arm mode uses right_arm.
-arm_can:
-  left_arm: can0
-  right_arm: can1
-v4l2:
-  cam_high: /dev/cam_high
-  cam_left_wrist: /dev/cam_left_wrist
-  cam_right_wrist: /dev/cam_right_wrist
-orbbec:
-  cam_high: CH8R554001M
-  cam_left_wrist: CH8G65200Z9
-  cam_right_wrist: CH8G65200Y4
+# Y1 真机设备映射，由 client.yaml 的 hardware_config 引用。
+# 启动前按实际接线和相机位置修改；此文件不设置模型、控制频率或 B 样条参数。
+# 当前读取代码会访问 arm_can、v4l2、orbbec 三个顶层键，即使仅用一种相机也请保留三个段。
+# 单臂模式只初始化 right_arm；初始化 SDK 会使能机械臂。
+
+arm_can: # 机械臂 SocketCAN 接口映射；接口须由系统/厂商驱动创建并按设备要求配置。
+  left_arm: can0 # 左臂接口；必须按实际物理接线确认，不要仅依赖系统枚举顺序。
+  right_arm: can1 # 右臂接口；single_arm=true 时使用这一项。
+
+v4l2: # camera_type=v4l2 时使用：相机名 → Linux 视频采集设备路径。
+  cam_high: /dev/cam_high # 顶部/主视角；固定别名需配置 udev，也可填写实际 /dev/videoN 采集节点。
+  cam_left_wrist: /dev/cam_left_wrist # 左腕相机；当前后端请求 MJPEG 格式，需设备支持。
+  cam_right_wrist: /dev/cam_right_wrist # 右腕相机；确认设备权限，且未被其他程序独占。
+
+orbbec: # camera_type=orbbec 时使用：相机名 → 厂商 SDK 枚举的序列号，而非 /dev 路径。
+  cam_high: CH8R554001M # 顶部/主视角序列号；此处为原有预设，必须替换为实物对应值。
+  cam_left_wrist: CH8G65200Z9 # 左腕相机序列号；可用 utils/list_orbbc_serial.py 枚举。
+  cam_right_wrist: CH8G65200Y4 # 右腕相机序列号；当前后端要求 RGB 640×480、30 FPS 彩色流。

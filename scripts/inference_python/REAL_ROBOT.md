@@ -1,6 +1,32 @@
 # 真机 / 仿真统一启动
 
-在两个终端分别运行 `bash scripts/start_server.sh` 和 `bash scripts/start_client.sh`。
+启动菜单默认参数现由 [configs](configs/README.md) 管理：
+`server.yaml` 控制服务器，`client.yaml` 控制客户端，使用 common + sim/real profiles 分层。
+可通过 `--config /path/to/client.yaml` 指定客户端配置，`--target real` 直接进入真机模式。
+切换环境会重置菜单值为对应 YAML 默认值；原始文件不覆盖，启动时保存 launcher 参数快照。
+
+
+完整执行顺序、线程与数据流见 [真机与仿真推理完整链路](../../doc/inference_pipeline.md)。
+
+完成环境安装后，在两个终端分别执行（每个终端先进入项目根目录）：
+
+```bash
+# 终端 1：服务端
+cd /root/workspace/bspline_test/openpi
+source .venv-server/bin/activate
+bash scripts/start_server.sh --target real
+```
+
+```bash
+# 终端 2：真机客户端
+cd /root/workspace/bspline_test/openpi
+source .venv-real/bin/activate
+bash scripts/start_client.sh --target real
+```
+
+仿真客户端改用 `source .venv-sim/bin/activate` 和 `--target sim`，服务端也选择匹配的仿真配置。
+激活仅对当前终端持续生效，新开终端需重新激活；菜单切换配置不会切换 Python 环境。
+若以前设置过解释器覆盖变量，先执行 `unset OPENPI_SERVER_PYTHON OPENPI_CLIENT_PYTHON`。
 选择“运行环境”：`sim` 是原 ALOHA 仿真，`real` 是 Y1 SDK / CAN 真机。
 切换环境会载入对应默认模型、B 样条 YAML、频率和输出目录，随后可继续修改。
 
@@ -10,8 +36,10 @@
 `checkpoints/pi05_base_full_dual_arm/bi_y1_test_20260410/30000`。
 必须选择实际训练好的 Y1 权重，ALOHA 仿真 checkpoint 不适用于真机。
 该配置支持同步、RTC 和 B 样条，新增元数据标明机器人、14 维动作、50 步窗口及 RTC 前缀空间。
-服务端需要重启以提供这些元数据。单臂可使用 `pi05_base_full_single_arm` 配合匹配的权重，
-支持同步 / B 样条；该配置不是 RTC 模型，客户端会拒绝 RTC 模式。
+服务端需要重启以提供这些元数据。`pi05_base_full_single_arm` 声明了单臂元数据，
+但公共 `AlohaOutputs` 仍输出前 14 维，与单臂客户端要求的 7 维不一致，
+**实际单臂服务端输出适配尚未完成**；单臂 mock 通过不代表真机已可用。
+该配置也不是 RTC 模型，客户端会拒绝 RTC 模式。
 
 ## 真机客户端
 
@@ -51,7 +79,7 @@ SDK 初始化仍会使能机械臂。相机仍采用最新帧缓存，无严格�
 ## 无硬件验证
 
 ```bash
-/tmp/openpi-bspline-venv/bin/python scripts/inference_python/run_policy.py \
+.venv-real/bin/python scripts/inference_python/run_policy.py \
   --mode bspline --mock --steps 60 --prompt test \
   --record-trajectories --plot-trajectories \
   --output /tmp/y1_bspline_smoke
@@ -63,7 +91,10 @@ SDK 初始化仍会使能机械臂。相机仍采用最新帧缓存，无严格�
 
 ## 实机环境前提
 
-在机械臂计算机指定 `OPENPI_CLIENT_PYTHON` 为装有硬件依赖的 Python，再启动客户端。
+逐步安装命令、SDK/URDF/CAN/相机配置及检查流程见
+[完整链路文档第 0 节](../../doc/inference_pipeline.md#0-安装环境)。
+
+在机械臂计算机执行 `source .venv-real/bin/activate` 激活装有硬件依赖的环境，再启动客户端。
 该环境需安装 `openpi-client`、`openpi-async_bspline`、`openpi-trajectory-recorder[plot]`、
 终端 requirements，以及 Y1 SDK、OpenCV、rerun、所选 V4L2 或 pyorbbecsdk，录像另需 imageio/ffmpeg。
 原 SDK 使用 `scripts/inference_python/assets/imeta_y1/y1_with_gripper.urdf`，需提供匹配的 URDF 和关联资源。

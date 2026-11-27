@@ -141,3 +141,78 @@ def test_real_server_switch_presets(tmp_path):
     checkpoint.mkdir()
     output = run_launcher("server", ["6", "real", "4", str(checkpoint), "s"], tmp_path)
     assert "--policy.config pi05_rtc_inference_dual_arm" in output
+
+
+def test_custom_launcher_yaml_and_target(tmp_path):
+    config = yaml.safe_load((ROOT / "scripts/inference_python/configs/client.yaml").read_text())
+    config["default_target"] = "real"
+    config["profiles"]["real"].update(host="192.168.1.20", steps=90, output=str(tmp_path / "run"), video=True)
+    path = tmp_path / "client.yaml"
+    path.write_text(yaml.safe_dump(config))
+    result = subprocess.run(
+        ["bash", str(ROOT / "scripts/start_client.sh"), "--config", str(path), "--dry-run"],
+        input="s\n",
+        text=True,
+        capture_output=True,
+        check=True,
+        env={**os.environ, "OPENPI_CLIENT_PYTHON": sys.executable},
+        timeout=20,
+    )
+    assert "--host 192.168.1.20" in result.stdout
+    assert "--steps 90" in result.stdout
+    assert "--video" in result.stdout
+    assert "run_policy.py" in result.stdout
+    (snapshot,) = (tmp_path / "run").glob("launcher_*.yaml")
+    assert yaml.safe_load(snapshot.read_text())["settings"]["target"] == "real"
+
+
+def test_launcher_rejects_unknown_or_wrong_type(tmp_path):
+    from configuration import load_profiles  # noqa: PLC0415
+    import pytest  # noqa: PLC0415
+
+    config = yaml.safe_load((ROOT / "scripts/inference_python/configs/client.yaml").read_text())
+    config["common"]["steps"] = "400"
+    path = tmp_path / "bad.yaml"
+    path.write_text(yaml.safe_dump(config))
+    with pytest.raises(ValueError, match="steps must be int"):
+        load_profiles("client", path)
+    config["common"]["steps"] = 400
+    config["common"]["typo"] = True
+    path.write_text(yaml.safe_dump(config))
+    with pytest.raises(ValueError, match="unknown"):
+        load_profiles("client", path)
+
+
+def test_start_scripts_use_activated_environment(tmp_path):
+    env_dir = tmp_path / "activated environment"
+    bin_dir = env_dir / "bin"
+    bin_dir.mkdir(parents=True)
+    interpreter = bin_dir / "python"
+    interpreter.write_text('#!/bin/sh\nprintf "activated-python %s\\n" "$@"\n')
+    interpreter.chmod(0o755)
+    for role in ("server", "client"):
+        env = {k: v for k, v in os.environ.items() if k != f"OPENPI_{role.upper()}_PYTHON"}
+        env["VIRTUAL_ENV"] = str(env_dir)
+        result = subprocess.run(
+            ["bash", str(ROOT / f"scripts/start_{role}.sh"), "--dry-run"],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert "activated-python --dry-run" in result.stdout
+        assert f"activated-python {role}" in result.stdout
+
+
+def test_start_scripts_require_activation():
+    for role in ("server", "client"):
+        env = {k: v for k, v in os.environ.items() if k not in ("VIRTUAL_ENV", f"OPENPI_{role.upper()}_PYTHON")}
+        result = subprocess.run(
+            ["bash", str(ROOT / f"scripts/start_{role}.sh"), "--dry-run"],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 1
+        assert "source .venv-" in result.stderr

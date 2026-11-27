@@ -1,0 +1,19 @@
+# 模型服务端交互终端默认配置，启动命令：bash scripts/start_server.sh
+# 覆盖顺序：common → profiles 中选定环境 → 本次终端交互修改。
+# --target real/sim 覆盖 default_target；--config 指定另一份启动器 YAML。
+# 本文件不配置机械臂硬件；服务器只接收观测并返回动作窗口。
+# Python 环境由 OPENPI_SERVER_PYTHON 指定，不由此文件切换。
+default_target: sim # 默认环境：sim=仿真模型预设，real=真机模型预设。
+
+common: # 服务端公共默认值，可在下面的环境配置中按需覆盖。
+  gpu: '0' # CUDA_VISIBLE_DEVICES：GPU 编号字符串，例如 '0' 或 '0,1'；可见多卡不等于自动并行推理。
+  port: 8000 # WebSocket 监听端口（1～65535）；客户端需填写相同端口，服务器监听 0.0.0.0。
+  memory_fraction: 0.6 # JAX 显存预分配比例，范围 (0,1]；不是推理速度参数，也不是 PyTorch 显存限制。
+
+profiles: # 切换环境会加载对应模型名和权重路径，不会自动把仿真权重转换为真机权重。
+  sim: # 仿真模型；当前 benchmark 的三种策略都使用兼容的 RTC 服务端配置。
+    config: pi0_aloha_sim_rtc # src/openpi/training/config.py 中的 TrainConfig 名称，决定模型结构、变换和元数据。
+    checkpoint: checkpoints/pi0_aloha_sim # 相对项目根目录的权重目录；也支持 gs:// 地址，需包含模型参数和归一化资产。
+  real: # 真机模型；必须使用与实际机器人、动作定义和任务匹配的训练权重。
+    config: pi05_rtc_inference_dual_arm # Y1 双臂 RTC 配置；同步/B 样条通过 enable_rtc=false 关闭 RTC 引导。
+    checkpoint: checkpoints/pi05_base_full_dual_arm/bi_y1_test_20260410/30000 # 原真机脚本的权重预设，请改为实际可用路径；不代表已下载。
